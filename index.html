@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14161a">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<title>いまやる</title>
+<style>
+:root{--bg:#14161a;--card:#1f2329;--line:#2d333b;--text:#e8eaed;--sub:#9aa3ad;--acc:#5eead4;--warn:#fb923c;--bad:#f87171}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:17px/1.5 system-ui,"Hiragino Sans","Yu Gothic UI",sans-serif;padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px 6px}
+header h1{font-size:18px;margin:0}
+#score{color:var(--sub);font-size:14px}
+main{max-width:640px;margin:0 auto;padding:0 12px}
+nav{display:flex;gap:6px;margin:8px 0 14px}
+nav button{flex:1;padding:12px;border:1px solid var(--line);background:transparent;color:var(--sub);border-radius:12px;font-size:16px}
+nav button.on{background:var(--card);color:var(--text);border-color:var(--acc)}
+#alerts .al{background:#3a2a1a;border:1px solid var(--warn);color:#ffd9b0;padding:10px 12px;border-radius:12px;margin-bottom:8px;font-size:15px}
+#alerts .al.bad{background:#3a1d1d;border-color:var(--bad);color:#fecaca}
+.focus{background:var(--card);border:2px solid var(--acc);border-radius:20px;padding:22px 18px;text-align:center}
+.focus .lbl{color:var(--acc);font-size:14px;letter-spacing:.1em}
+.focus .ttl{font-size:26px;font-weight:700;margin:10px 0 6px;word-break:break-word}
+.focus .due{color:var(--sub);font-size:15px}
+.focus .due.bad{color:var(--bad)}.focus .due.warn{color:var(--warn)}
+.focus .step{margin:14px 0 4px;padding:10px;background:#14161a;border-radius:12px;font-size:20px}
+.focus .step small{display:block;color:var(--sub);font-size:13px}
+.big{display:block;width:100%;padding:18px;margin-top:14px;border:0;border-radius:16px;background:var(--acc);color:#04201c;font-size:22px;font-weight:700}
+.row2{display:flex;gap:8px;margin-top:10px}
+.sec{flex:1;padding:14px 8px;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:14px;font-size:15px}
+.rest{text-align:center;color:var(--sub);margin-top:12px;font-size:14px}
+.empty{text-align:center;padding:40px 10px;color:var(--sub);font-size:20px}
+h2{font-size:14px;color:var(--sub);margin:18px 4px 6px;font-weight:600}
+h2.bad{color:var(--bad)}h2.warn{color:var(--warn)}
+.item{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:14px;padding:10px 12px;margin-bottom:6px}
+.item .chk{width:30px;height:30px;border-radius:50%;border:2px solid var(--sub);background:transparent;flex:none;color:var(--acc);font-size:18px;padding:0}
+.item .body{flex:1;min-width:0}
+.item .t{word-break:break-word}.item .d{font-size:13px;color:var(--sub)}
+.item .d.bad{color:var(--bad)}.item .d.warn{color:var(--warn)}
+.item .menu{border:0;background:transparent;color:var(--sub);font-size:22px;padding:6px 8px}
+.item.done .t{text-decoration:line-through;color:var(--sub)}
+.item.pin{border:1px solid var(--acc)}
+#addbar{position:fixed;left:0;right:0;bottom:0;background:#0e1013;border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px}
+#addbar input{flex:1;min-width:0;padding:14px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:17px}
+#addbar button{border:0;border-radius:14px;padding:0 16px;font-size:20px;background:var(--card);color:var(--text)}
+#addbar #addbtn{background:var(--acc);color:#04201c;font-weight:700;font-size:16px}
+#addbar #mic.rec{background:var(--bad)}
+#hint{color:var(--sub);font-size:12px;text-align:center;margin-top:16px}
+dialog{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:18px;width:min(92vw,420px)}
+dialog::backdrop{background:#000a}
+dialog input{width:100%;padding:12px;margin:6px 0 12px;border-radius:10px;border:1px solid var(--line);background:#14161a;color:var(--text);font-size:17px}
+dialog .btns{display:flex;gap:8px}dialog .btns button{flex:1;padding:12px;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:16px}
+dialog .btns .p{background:var(--acc);color:#04201c;border:0}dialog .btns .x{color:var(--bad)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.tools button{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:14px}
+#toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:var(--acc);color:#04201c;padding:10px 18px;border-radius:999px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .25s;z-index:9}
+#toast.show{opacity:1}
+@media (prefers-reduced-motion:no-preference){.focus.pop{animation:pop .35s}@keyframes pop{50%{transform:scale(1.03)}}}
+</style>
+</head>
+<body>
+<header><h1>いまやる</h1><span id="score"></span></header>
+<main>
+  <div id="alerts"></div>
+  <nav>
+    <button data-tab="now" class="on">いま</button>
+    <button data-tab="all">ぜんぶ</button>
+    <button data-tab="done">完了・設定</button>
+  </nav>
+  <div id="view"></div>
+</main>
+<div id="toast"></div>
+
+<form id="addbar" autocomplete="off">
+  <input id="inp" placeholder="思いついたら、ここに一行（例: 明日15時 歯医者）" enterkeyhint="send">
+  <button type="button" id="mic" title="音声で入力">🎤</button>
+  <button type="submit" id="addbtn">追加</button>
+</form>
+
+<dialog id="dlg">
+  <form method="dialog" id="dlgform">
+    <label>やること</label><input id="d_title">
+    <label>期限（空欄で期限なし）</label><input id="d_due" type="datetime-local">
+    <label><input type="checkbox" id="d_notime" style="width:auto;margin:0 6px 0 0">時刻なし（日付だけ）</label>
+    <div class="btns" style="margin-top:14px">
+      <button type="button" class="x" id="d_del">削除</button>
+      <button type="button" id="d_cancel">やめる</button>
+      <button type="button" class="p" id="d_save">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+'use strict';
+/* ========== データ ========== */
+const KEY = 'imayaru.v1';
+let S = load();
+function load(){
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.tasks)) return s; } catch(e){}
+  return { tasks: [], doneLog: [] };
+}
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ toast('保存できませんでした'); } }
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let tab = 'now';
+
+/* ========== 一行入力の解釈（日付・時刻を拾う） ========== */
+function parse(text){
+  let s = text.trim(), now = new Date(), date = null, hh = null, mm = 0;
+  const cut = re => { const m = s.match(re); if (m) s = s.replace(re, ' '); return m; };
+  const day = n => { const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + n); return d; };
+  let m;
+  if (cut(/明後日|あさって/)) date = day(2);
+  else if (cut(/明日|あした/)) date = day(1);
+  else if (cut(/今日|きょう/)) date = day(0);
+  else if ((m = cut(/(来週)?の?([月火水木金土日])曜日?/))) {
+    const t = '日月火水木金土'.indexOf(m[2]); let diff = (t - now.getDay() + 7) % 7;
+    if (diff === 0) diff = 7; if (m[1] && diff < 7 - now.getDay() + 1 && now.getDay() !== 0) diff += 7;
+    date = day(diff);
+  }
+  else if ((m = cut(/(\d{1,2})[\/月](\d{1,2})日?/))) {
+    date = new Date(now.getFullYear(), +m[1]-1, +m[2]);
+    if (date < day(0)) date.setFullYear(date.getFullYear()+1);
+  }
+  if ((m = cut(/(\d{1,2}):(\d{2})/))) { hh = +m[1]; mm = +m[2]; }
+  else if ((m = cut(/(午前|午後)?(\d{1,2})時(半|(\d{1,2})分?)?/))) {
+    hh = +m[2]; mm = m[3] === '半' ? 30 : (m[4] ? +m[4] : 0);
+    if (m[1] === '午後' && hh < 12) hh += 12; else if (!m[1] && hh >= 1 && hh <= 6) hh += 12;
+  }
+  let due = null, hasTime = false;
+  if (hh !== null) {
+    hasTime = true;
+    const base = date || day(0);
+    due = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hh, mm).getTime();
+    if (!date && due < Date.now()) due += 86400000;
+  } else if (date) due = date.getTime();
+  const title = s.replace(/\s+/g,' ').replace(/^[\sに:、,の]+|[\sに:、,]+$/g,'').trim() || text.trim();
+  return { title, due, hasTime };
+}
+
+/* ========== タスク操作 ========== */
+const open = () => S.tasks.filter(t => !t.done);
+function endOf(t){ // 期限切れの境目
+  if (!t.due) return Infinity;
+  return t.hasTime ? t.due : t.due + 86400000;
+}
+function order(){ // 「いま」の優先順
+  const n = Date.now();
+  return open().filter(t => !t.snooze || t.snooze <= n).sort((a,b) =>
+    (b.pin?1:0) - (a.pin?1:0) || (a.due||Infinity) - (b.due||Infinity) || a.created - b.created);
+}
+function addTask(text){
+  const p = parse(text); if (!p.title) return;
+  S.tasks.push({ id: uid(), title: p.title, due: p.due, hasTime: p.hasTime, done: false, created: Date.now(), steps: [], notified: {} });
+  save(); toast('覚えた ✓'); render();
+}
+function complete(t){
+  t.done = true; t.doneAt = Date.now(); t.pin = false;
+  S.doneLog.push(t.doneAt); save();
+  toast(['いいね！','ナイス！','できた！','えらい！','1個クリア！'][Math.floor(Math.random()*5)]);
+  render(true);
+}
+function fmtDue(t){
+  if (!t.due) return '';
+  const d = new Date(t.due), n = new Date();
+  const days = Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate()) - new Date(n.getFullYear(),n.getMonth(),n.getDate())) / 86400000);
+  const wd = '日月火水木金土'[d.getDay()];
+  let l = days === 0 ? '今日' : days === 1 ? '明日' : days === 2 ? '明後日' : days === -1 ? '昨日' : `${d.getMonth()+1}/${d.getDate()}(${wd})`;
+  if (t.hasTime) l += ` ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return l;
+}
+function dueClass(t){
+  if (!t.due) return '';
+  const left = endOf(t) - Date.now();
+  if (left < 0) return 'bad';
+  if (left < 3*3600000 || (!t.hasTime && t.due <= Date.now() + 86400000)) return 'warn';
+  return '';
+}
+function doneToday(){
+  const s = new Date(); s.setHours(0,0,0,0);
+  return S.doneLog.filter(x => x >= s.getTime()).length;
+}
+
+/* ========== 描画 ========== */
+function render(pop){
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  $('#score').textContent = doneToday() ? `今日 ${doneToday()}個 できた` : '';
+  renderAlerts();
+  if (tab === 'now') viewNow(pop); else if (tab === 'all') viewAll(); else viewDone();
+}
+function renderAlerts(){
+  const n = Date.now(), od = open().filter(t => endOf(t) < n).length;
+  const soon = open().filter(t => t.hasTime && t.due >= n && t.due - n < 3600000).length;
+  let h = '';
+  if (od) h += `<div class="al bad">期限が過ぎているのが ${od}件 あります（「ぜんぶ」で確認）</div>`;
+  if (soon) h += `<div class="al">1時間以内の予定が ${soon}件 あります</div>`;
+  if ('Notification' in window && Notification.permission === 'default')
+    h += `<div class="al" id="askn" style="cursor:pointer">🔔 タップで通知をオンにする（アプリを開いている間、期限を知らせます）</div>`;
+  $('#alerts').innerHTML = h;
+  const a = $('#askn'); if (a) a.onclick = () => Notification.requestPermission().then(render);
+}
+function viewNow(pop){
+  const list = order(), t = list[0], v = $('#view');
+  if (!t) {
+    const later = open().length;
+    v.innerHTML = `<div class="empty">${later ? 'いまは あとで待ちだけ。<br>休んでOK 🍵' : 'ぜんぶ おわり 🎉<br>休んでOK'}</div>`;
+    return;
+  }
+  const step = t.steps.find(s => !s.done), due = fmtDue(t);
+  v.innerHTML = `
+  <div class="focus ${pop?'pop':''}">
+    <div class="lbl">いま、これだけ</div>
+    <div class="ttl">${esc(t.title)}</div>
+    ${due ? `<div class="due ${dueClass(t)}">${dueClass(t)==='bad'?'期限切れ ':'期限 '}${due}</div>` : ''}
+    ${step ? `<div class="step"><small>最初の一歩</small>${esc(step.t)}</div>` : ''}
+    <button class="big" id="b_done">${step ? '✅ この一歩 できた' : '✅ できた'}</button>
+    <div class="row2">
+      <button class="sec" id="b_later">⏭ あとで<br><small>1時間</small></button>
+      <button class="sec" id="b_split">✂ 小さくする<br><small>最初の一歩</small></button>
+    </div>
+    <div id="splitbox"></div>
+  </div>
+  <div class="rest">${list.length > 1 ? `ほかに ${list.length-1}件（見なくてOK）` : ''}</div>`;
+  $('#b_done').onclick = () => {
+    if (step) { step.done = true; save(); t.steps.every(s => s.done) ? complete(t) : (toast('一歩 すすんだ ✓'), render(true)); }
+    else complete(t);
+  };
+  $('#b_later').onclick = () => { t.snooze = Date.now() + 3600000; t.pin = false; save(); toast('1時間あとに回した'); render(); };
+  $('#b_split').onclick = () => {
+    $('#splitbox').innerHTML = `<input id="stepinp" placeholder="30秒でできる最初の一歩は？" style="width:100%;margin-top:12px;padding:12px;border-radius:12px;border:1px solid var(--line);background:#14161a;color:var(--text);font-size:17px">`;
+    const i = $('#stepinp'); i.focus();
+    i.onkeydown = e => { if (e.key === 'Enter' && i.value.trim()) { e.preventDefault(); t.steps.push({ t: i.value.trim(), done: false }); save(); render(); } };
+  };
+}
+function itemHtml(t){
+  const d = fmtDue(t), c = dueClass(t);
+  return `<div class="item ${t.done?'done':''} ${t.pin?'pin':''}" data-id="${t.id}">
+    <button class="chk" data-a="chk">${t.done?'✓':''}</button>
+    <div class="body" data-a="edit"><div class="t">${esc(t.title)}</div>
+      ${(d || t.steps.length) ? `<div class="d ${c}">${d}${d && t.steps.length?' ・ ':''}${t.steps.length?`一歩 ${t.steps.filter(s=>s.done).length}/${t.steps.length}`:''}</div>` : ''}</div>
+    ${t.done ? '' : `<button class="menu" data-a="pin" title="いま やる">${t.pin?'📌':'📍'}</button>`}
+  </div>`;
+}
+function viewAll(){
+  const n = Date.now(), tasks = open();
+  const od = tasks.filter(t => endOf(t) < n).sort((a,b)=>a.due-b.due);
+  const rest = tasks.filter(t => endOf(t) >= n);
+  const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
+  const today = rest.filter(t => t.due && t.due <= todayEnd.getTime()).sort((a,b)=>a.due-b.due);
+  const future = rest.filter(t => t.due && t.due > todayEnd.getTime()).sort((a,b)=>a.due-b.due);
+  const none = rest.filter(t => !t.due).sort((a,b)=>b.created-a.created);
+  const sec = (title, arr, cls='') => arr.length ? `<h2 class="${cls}">${title}（${arr.length}）</h2>${arr.map(itemHtml).join('')}` : '';
+  $('#view').innerHTML = (tasks.length ? sec('期限切れ', od, 'bad') + sec('今日', today, 'warn') + sec('これから', future) + sec('期限なし（思いつき）', none)
+    : '<div class="empty">空っぽ。気が楽。</div>') + '<div id="hint">左の○で完了 ／ 文字をタップで編集 ／ 📍で「いま」に出す</div>';
+}
+function viewDone(){
+  const done = S.tasks.filter(t => t.done).sort((a,b)=>b.doneAt-a.doneAt).slice(0,30);
+  $('#view').innerHTML = (done.length ? `<h2>最近できたこと</h2>${done.map(itemHtml).join('')}` : '<div class="empty" style="font-size:16px">まだ完了はありません</div>') + `
+  <div class="tools">
+    <button id="t_exp">📤 バックアップを保存</button>
+    <button id="t_imp">📥 バックアップから戻す</button>
+    <button id="t_clr">🧹 完了を全部消す</button>
+  </div><input type="file" id="t_file" accept="application/json" hidden>
+  <div id="hint">データはこの端末のブラウザの中だけに保存されます。端末をまたぐときはバックアップを使ってください。</div>`;
+  $('#t_exp').onclick = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(S,null,1)], { type: 'application/json' }));
+    a.download = `imayaru-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  };
+  $('#t_imp').onclick = () => $('#t_file').click();
+  $('#t_file').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    f.text().then(x => { const j = JSON.parse(x); if (!Array.isArray(j.tasks)) throw 0; if (confirm('今のデータを置き換えます。よろしいですか？')) { S = { tasks: j.tasks, doneLog: j.doneLog || [] }; save(); render(); } }).catch(() => toast('読み込めませんでした'));
+  };
+  $('#t_clr').onclick = () => { if (confirm('完了したものを全部消します。よろしいですか？')) { S.tasks = S.tasks.filter(t => !t.done); save(); render(); } };
+}
+
+/* ========== イベント ========== */
+$('#view').addEventListener('click', e => {
+  const el = e.target.closest('[data-a]'); if (!el) return;
+  const it = el.closest('.item'), t = S.tasks.find(x => x.id === it.dataset.id); if (!t) return;
+  const a = el.dataset.a;
+  if (a === 'chk') { if (t.done) { t.done = false; save(); render(); } else complete(t); }
+  else if (a === 'pin') { S.tasks.forEach(x => x.pin = false); t.pin = !t.pin; t.snooze = 0; save(); toast(t.pin ? '「いま」に出した' : '解除'); render(); }
+  else if (a === 'edit') openEdit(t);
+});
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
+$('#addbar').addEventListener('submit', e => {
+  e.preventDefault(); const v = $('#inp').value; if (!v.trim()) return;
+  addTask(v); $('#inp').value = ''; $('#inp').focus();
+});
+
+/* 音声入力（対応ブラウザのみ） */
+(() => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition, mic = $('#mic');
+  if (!SR) { mic.style.display = 'none'; return; }
+  const r = new SR(); r.lang = 'ja-JP'; r.interimResults = false;
+  r.onresult = e => { $('#inp').value = e.results[0][0].transcript; };
+  r.onend = () => mic.classList.remove('rec');
+  mic.onclick = () => { try { r.start(); mic.classList.add('rec'); } catch(e){} };
+})();
+
+/* 編集ダイアログ */
+let editing = null;
+const pad = n => String(n).padStart(2,'0');
+function openEdit(t){
+  editing = t; $('#d_title').value = t.title;
+  if (t.due) { const d = new Date(t.due); $('#d_due').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${t.hasTime ? pad(d.getHours())+':'+pad(d.getMinutes()) : '00:00'}`; }
+  else $('#d_due').value = '';
+  $('#d_notime').checked = !t.hasTime; $('#dlg').showModal();
+}
+$('#d_cancel').onclick = () => $('#dlg').close();
+$('#d_del').onclick = () => { if (confirm('削除しますか？')) { S.tasks = S.tasks.filter(x => x !== editing); save(); $('#dlg').close(); render(); } };
+$('#d_save').onclick = () => {
+  const v = $('#d_due').value; editing.title = $('#d_title').value.trim() || editing.title;
+  if (v) { editing.hasTime = !$('#d_notime').checked; editing.due = new Date(v).getTime(); if (!editing.hasTime) { const d = new Date(editing.due); editing.due = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); } }
+  else { editing.due = null; editing.hasTime = false; }
+  editing.notified = {}; save(); $('#dlg').close(); render();
+};
+
+/* ========== 通知（アプリを開いている間） ========== */
+function notify(title, body){
+  toast(title);
+  if (navigator.vibrate) navigator.vibrate([200,100,200]);
+  if ('Notification' in window && Notification.permission === 'granted') {
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then(r => r.showNotification(title, { body, tag: title + body })).catch(() => new Notification(title, { body }));
+    else new Notification(title, { body });
+  }
+}
+function tick(){
+  const n = Date.now(); let changed = false;
+  open().forEach(t => {
+    if (!t.due) return; t.notified = t.notified || {};
+    const at = t.hasTime ? t.due : t.due + 9*3600000; // 日付だけの予定は当日9時
+    if (t.hasTime && !t.notified.pre && n >= at - 10*60000 && n < at) { t.notified.pre = 1; changed = true; notify('もうすぐ: ' + t.title, '10分前です'); }
+    if (!t.notified.at && n >= at && n < endOf(t)) { t.notified.at = 1; changed = true; notify('今日: ' + t.title, t.hasTime ? '時間です' : '今日が期限です'); }
+  });
+  if (changed) { save(); render(); }
+}
+setInterval(tick, 30000); setInterval(() => { if (!document.hidden && tab !== 'all') render(); }, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); render(); } });
+
+/* ========== 補助 ========== */
+let tt; function toast(m){ const el = $('#toast'); el.textContent = m; el.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => el.classList.remove('show'), 1600); }
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+render(); tick(); $('#inp').focus();
+</script>
+</body>
+</html>
