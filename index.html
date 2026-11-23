@@ -147,10 +147,12 @@ function endOf(t){ // 期限切れの境目
   if (!t.due) return Infinity;
   return t.hasTime ? t.due : t.due + 86400000;
 }
+// 日付だけの期限は、その日の9時（通知と同じ）として並べる
+function sortKey(t){ return !t.due ? 9e15 : t.hasTime ? t.due : t.due + 9*3600000; }
 function order(){ // 「いま」の優先順
   const n = Date.now();
   return open().filter(t => !t.snooze || t.snooze <= n).sort((a,b) =>
-    (b.pin?1:0) - (a.pin?1:0) || (a.due||Infinity) - (b.due||Infinity) || a.created - b.created);
+    (b.pin?1:0) - (a.pin?1:0) || sortKey(a) - sortKey(b) || a.created - b.created);
 }
 function addTask(text){
   const p = parse(text); if (!p.title) return;
@@ -317,7 +319,7 @@ function openEdit(t){
   editing = t; $('#d_title').value = t.title;
   if (t.due) { const d = new Date(t.due); $('#d_due').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${t.hasTime ? pad(d.getHours())+':'+pad(d.getMinutes()) : '00:00'}`; }
   else $('#d_due').value = '';
-  $('#d_notime').checked = !t.hasTime; $('#dlg').showModal();
+  $('#d_notime').checked = t.due ? !t.hasTime : false; $('#dlg').showModal();
 }
 $('#d_cancel').onclick = () => $('#dlg').close();
 $('#d_del').onclick = () => { if (confirm('削除しますか？')) { S.tasks = S.tasks.filter(x => x !== editing); save(); $('#dlg').close(); render(); } };
@@ -325,7 +327,7 @@ $('#d_save').onclick = () => {
   const v = $('#d_due').value; editing.title = $('#d_title').value.trim() || editing.title;
   if (v) { editing.hasTime = !$('#d_notime').checked; editing.due = new Date(v).getTime(); if (!editing.hasTime) { const d = new Date(editing.due); editing.due = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); } }
   else { editing.due = null; editing.hasTime = false; }
-  editing.notified = {}; save(); $('#dlg').close(); render();
+  editing.notified = {}; editing.snooze = 0; save(); $('#dlg').close(); render();
 };
 
 /* ========== 通知（アプリを開いている間） ========== */
