@@ -61,7 +61,7 @@ dialog .btns .p{background:var(--acc);color:#04201c;border:0}dialog .btns .x{col
 </style>
 </head>
 <body>
-<header><h1>いまやる</h1><span id="score"></span></header>
+<header><h1>いまやる</h1><span><span id="score"></span> <small id="syncst" style="color:var(--sub)"></small></span></header>
 <main>
   <div id="alerts"></div>
   <nav>
@@ -98,10 +98,64 @@ dialog .btns .p{background:var(--acc);color:#04201c;border:0}dialog .btns .x{col
 const KEY = 'imayaru.v1';
 let S = load();
 function load(){
-  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.tasks)) return s; } catch(e){}
-  return { tasks: [], doneLog: [] };
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.tasks)) { s.tombs = s.tombs || []; return s; } } catch(e){}
+  return { tasks: [], doneLog: [], tombs: [] };
 }
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ toast('保存できませんでした'); } }
+const CFG_KEY = 'imayaru.cfg', SNAP_KEY = 'imayaru.snap';
+const VAPID_PUBLIC = 'BI6MGHsEjFpXZ8Jx30NloHIbGCMHVGl-yyMhe4FJ5gg75Uhn1g2UfPWgz1c4llR642VDXhmaRiMrQS1vbYQgdYU';
+const readLS = (k) => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch(e){ return {}; } };
+let cfg = readLS(CFG_KEY), snap = readLS(SNAP_KEY), ver = 0;
+function saveCfg(){
+  try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch(e){}
+  if (window.caches) caches.open('imayaru-cfg').then(c => c.put('cfg', new Response(JSON.stringify({ url: cfg.url, token: cfg.token })))).catch(() => {});
+}
+function persist(){
+  try { localStorage.setItem(KEY, JSON.stringify(S)); localStorage.setItem(SNAP_KEY, JSON.stringify(snap)); } catch(e){ toast('保存できませんでした'); }
+}
+// 変更のあったタスクだけ更新時刻(u)を進める。消したものは墓標(tombs)に残して同期する
+function save(){
+  const now = Date.now(), ids = new Set(); ver++;
+  S.tasks.forEach(t => { ids.add(t.id); const j = JSON.stringify({ ...t, u: 0 }); if (snap[t.id] !== j) { t.u = now; snap[t.id] = j; } });
+  Object.keys(snap).forEach(id => { if (!ids.has(id)) { delete snap[id]; if (!S.tombs.some(x => x.id === id)) S.tombs.push({ id, del: true, u: now }); } });
+  persist(); queueSync();
+}
+/* ========== サーバー同期 ========== */
+let syncT = null, syncing = false;
+const setSync = m => { const e = document.getElementById('syncst'); if (e) e.textContent = m; };
+function queueSync(){ if (!cfg.url) return; clearTimeout(syncT); syncT = setTimeout(sync, 1500); }
+async function sync(){
+  if (!cfg.url || syncing || !navigator.onLine) return;
+  if (document.getElementById('dlg').open || (document.activeElement && document.activeElement.id === 'stepinp')) { queueSync(); return; }
+  syncing = true; const v0 = ver;
+  try {
+    const r = await fetch(cfg.url + '/api/sync', { method: 'POST', headers: { Authorization: 'Bearer ' + cfg.token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tasks: S.tasks.concat(S.tombs) }) });
+    if (!r.ok) throw new Error(r.status);
+    const { tasks } = await r.json();
+    if (v0 !== ver) { queueSync(); return; }           // 通信中に手元で変更があったら、結果は捨てて取り直す
+    const cut = Date.now() - 30 * 864e5, live = [], tombs = [];
+    tasks.forEach(t => { if (t.del) { if (t.u > cut) tombs.push({ id: t.id, del: true, u: t.u }); } else live.push(t); });
+    S.tasks = live; S.tombs = tombs; snap = {};
+    live.forEach(t => { snap[t.id] = JSON.stringify({ ...t, u: 0 }); });
+    // 声で入れた受信箱の項目から日付・時刻を拾う
+    let ch = false;
+    S.tasks.forEach(t => { if (t.inbox) { const p = parse(t.title); t.title = p.title; t.due = p.due; t.hasTime = p.hasTime; delete t.inbox; ch = true; } });
+    if (ch) save(); else persist();
+    setSync('同期OK'); render();
+  } catch(e){ setSync('未同期'); }
+  finally { syncing = false; }
+}
+function urlB64(b){ const p = '='.repeat((4 - b.length % 4) % 4), x = atob((b + p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from(x, c => c.charCodeAt(0)); }
+async function enablePush(){
+  if (!cfg.url) { toast('先にサーバーを設定してください'); return; }
+  try {
+    if ((await Notification.requestPermission()) !== 'granted') { toast('通知が許可されていません'); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(VAPID_PUBLIC) });
+    const r = await fetch(cfg.url + '/api/subscribe', { method: 'POST', headers: { Authorization: 'Bearer ' + cfg.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON() }) });
+    cfg.push = r.ok; saveCfg(); toast(r.ok ? '通知をオンにした' : '登録に失敗'); render();
+  } catch(e){ toast('通知の登録に失敗: ' + (e.message || e)); }
+}
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -199,10 +253,11 @@ function renderAlerts(){
   let h = '';
   if (od) h += `<div class="al bad">期限が過ぎているのが ${od}件 あります（「ぜんぶ」で確認）</div>`;
   if (soon) h += `<div class="al">1時間以内の予定が ${soon}件 あります</div>`;
-  if ('Notification' in window && Notification.permission === 'default')
+  if (cfg.url && !cfg.push) h += `<div class="al" id="askn" style="cursor:pointer">🔔 タップで通知をオン（アプリを閉じていても届きます）</div>`;
+  else if (!cfg.url && 'Notification' in window && Notification.permission === 'default')
     h += `<div class="al" id="askn" style="cursor:pointer">🔔 タップで通知をオンにする（アプリを開いている間、期限を知らせます）</div>`;
   $('#alerts').innerHTML = h;
-  const a = $('#askn'); if (a) a.onclick = () => Notification.requestPermission().then(render);
+  const a = $('#askn'); if (a) a.onclick = () => cfg.url ? enablePush() : Notification.requestPermission().then(render);
 }
 function viewNow(pop){
   const list = order(), t = list[0], v = $('#view');
@@ -221,6 +276,10 @@ function viewNow(pop){
     <button class="big" id="b_done">${step ? '✅ この一歩 できた' : '✅ できた'}</button>
     <div class="row2">
       <button class="sec" id="b_later">⏭ あとで<br><small>1時間</small></button>
+      <button class="sec" id="b_tom">🌙 明日<br><small>朝に出す</small></button>
+      <button class="sec" id="b_drop">🗑 もういい<br><small>捨てる</small></button>
+    </div>
+    <div class="row2">
       <button class="sec" id="b_split">✂ 小さくする<br><small>最初の一歩</small></button>
       <button class="sec" id="b_pin">${t.pin ? '📌 固定を解除' : '📍 これで固定'}<br><small>${t.pin ? '押すと解除' : '動かさない'}</small></button>
     </div>
@@ -232,6 +291,8 @@ function viewNow(pop){
     else complete(t);
   };
   $('#b_later').onclick = () => { t.snooze = Date.now() + 3600000; t.pin = false; save(); toast('1時間あとに回した'); render(); };
+  $('#b_tom').onclick = () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8,0,0,0); t.snooze = d.getTime(); t.pin = false; save(); toast('明日の朝に回した'); render(); };
+  $('#b_drop').onclick = () => { S.tasks = S.tasks.filter(x => x !== t); save(); toast('捨てた。気にしない'); render(); };
   $('#b_pin').onclick = () => { const on = !t.pin; S.tasks.forEach(x => x.pin = false); t.pin = on; save(); toast(on ? '固定した' : '固定を解除した'); render(); };
   $('#b_split').onclick = () => {
     $('#splitbox').innerHTML = `<input id="stepinp" placeholder="30秒でできる最初の一歩は？" style="width:100%;margin-top:12px;padding:12px;border-radius:12px;border:1px solid var(--line);background:#14161a;color:var(--text);font-size:17px">`;
@@ -268,7 +329,14 @@ function viewDone(){
     <button id="t_imp">📥 バックアップから戻す</button>
     <button id="t_clr">🧹 完了を全部消す</button>
   </div><input type="file" id="t_file" accept="application/json" hidden>
-  <div id="hint">データはこの端末のブラウザの中だけに保存されます。端末をまたぐときはバックアップを使ってください。</div>`;
+  <h2>サーバー連携</h2>
+  <div class="item"><div class="body"><div class="t">${cfg.url ? 'つながっています' : '未設定'} ${cfg.push ? '・通知オン' : ''}</div>
+    <div class="d">${cfg.url ? esc(cfg.url) : '設定リンクを開くと入ります'}</div></div></div>
+  <div class="tools"><button id="t_sync">🔄 今すぐ同期</button><button id="t_push">🔔 通知をオン</button><button id="t_test">📨 テスト通知</button></div>
+  <div id="hint">データはサーバーと同期されます。バックアップは念のため残してあります。</div>`;
+  $('#t_sync').onclick = () => { sync(); toast('同期する'); };
+  $('#t_push').onclick = enablePush;
+  $('#t_test').onclick = () => fetch(cfg.url + '/api/test', { method: 'POST', headers: { Authorization: 'Bearer ' + cfg.token } }).then(r => r.json()).then(j => toast(j.sent ? 'テスト通知を送った' : '送れなかった（通知をオンにしてください）')).catch(() => toast('サーバーに届かない'));
   $('#t_exp').onclick = () => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(S,null,1)], { type: 'application/json' }));
@@ -344,7 +412,7 @@ $('#d_save').onclick = () => {
 function notify(title, body){
   toast(title);
   if (navigator.vibrate) navigator.vibrate([200,100,200]);
-  if ('Notification' in window && Notification.permission === 'granted') {
+  if (!cfg.push && 'Notification' in window && Notification.permission === 'granted') {
     if (navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then(r => r.showNotification(title, { body, tag: title + body })).catch(() => new Notification(title, { body }));
     else new Notification(title, { body });
   }
@@ -360,12 +428,17 @@ function tick(){
   if (changed) { save(); render(); }
 }
 setInterval(tick, 30000); setInterval(() => { if (!document.hidden && tab !== 'all') render(); }, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); render(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); render(); sync(); } });
 
 /* ========== 補助 ========== */
 let tt; function toast(m){ const el = $('#toast'); el.textContent = m; el.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => el.classList.remove('show'), 1600); }
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
-render(); tick(); $('#inp').focus();
+(() => { // 設定リンク: …/imayaru/#setup=<base64> を開くとサーバー設定が入る
+  const m = location.hash.match(/^#setup=(.+)$/);
+  if (m) { try { const o = JSON.parse(decodeURIComponent(escape(atob(m[1])))); if (o.u && o.t) { cfg.url = o.u.replace(/\/$/, ''); cfg.token = o.t; saveCfg(); history.replaceState(null, '', location.pathname); toast('サーバー設定を入れた'); } } catch(e){} }
+})();
+saveCfg(); render(); tick(); sync(); $('#inp').focus();
+setInterval(() => { if (!document.hidden) sync(); }, 60000);
 </script>
 </body>
 </html>
