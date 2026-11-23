@@ -301,17 +301,25 @@ $('#addbar').addEventListener('submit', e => {
 (() => {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition, mic = $('#mic');
   if (!SR) { mic.style.display = 'none'; return; }
-  const r = new SR(); r.lang = 'ja-JP'; r.interimResults = true;
-  let rec = false, backup = '';
+  let r = null, rec = false, backup = '', timer = null;
   const setRec = on => { rec = on; mic.classList.toggle('rec', on); mic.textContent = on ? '■' : '🎤'; mic.title = on ? 'タップで中止' : '音声で入力'; };
-  r.onresult = e => { $('#inp').value = Array.from(e.results).map(x => x[0].transcript).join(''); };
-  r.onend = () => setRec(false);
-  r.onerror = () => { setRec(false); };
+  // 止まらない端末対策: 画面は必ず先に戻し、認識は止める・捨てる・触らないの順で確実に終わらせる
+  function stopRec(keep){
+    clearTimeout(timer); timer = null;
+    const old = r; r = null; setRec(false);
+    if (!keep) $('#inp').value = backup;
+    if (old) { old.onresult = old.onend = old.onerror = null; try { old.abort(); } catch(e){} try { old.stop(); } catch(e){} }
+  }
   mic.onclick = () => {
-    if (rec) { r.abort(); $('#inp').value = backup; toast('音声入力を中止'); setRec(false); return; } // 中止: 入力を元に戻す
+    if (rec) { stopRec(false); toast('音声入力を中止'); return; }
     backup = $('#inp').value;
-    try { r.start(); setRec(true); } catch(e){ setRec(false); }
+    r = new SR(); r.lang = 'ja-JP'; r.continuous = false; r.interimResults = true;
+    r.onresult = e => { $('#inp').value = Array.from(e.results).map(x => x[0].transcript).join(''); };
+    r.onend = () => stopRec(true);
+    r.onerror = () => stopRec(true);
+    try { r.start(); setRec(true); timer = setTimeout(() => { stopRec(true); toast('音声入力を終了'); }, 15000); } catch(e){ stopRec(false); }
   };
+  document.addEventListener('visibilitychange', () => { if (document.hidden && rec) stopRec(false); });
 })();
 
 /* 編集ダイアログ */
