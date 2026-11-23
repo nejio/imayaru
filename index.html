@@ -297,10 +297,17 @@ $('#addbar').addEventListener('submit', e => {
 (() => {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition, mic = $('#mic');
   if (!SR) { mic.style.display = 'none'; return; }
-  const r = new SR(); r.lang = 'ja-JP'; r.interimResults = false;
-  r.onresult = e => { $('#inp').value = e.results[0][0].transcript; };
-  r.onend = () => mic.classList.remove('rec');
-  mic.onclick = () => { try { r.start(); mic.classList.add('rec'); } catch(e){} };
+  const r = new SR(); r.lang = 'ja-JP'; r.interimResults = true;
+  let rec = false, backup = '';
+  const setRec = on => { rec = on; mic.classList.toggle('rec', on); mic.textContent = on ? '■' : '🎤'; mic.title = on ? 'タップで中止' : '音声で入力'; };
+  r.onresult = e => { $('#inp').value = Array.from(e.results).map(x => x[0].transcript).join(''); };
+  r.onend = () => setRec(false);
+  r.onerror = () => { setRec(false); };
+  mic.onclick = () => {
+    if (rec) { r.abort(); $('#inp').value = backup; toast('音声入力を中止'); setRec(false); return; } // 中止: 入力を元に戻す
+    backup = $('#inp').value;
+    try { r.start(); setRec(true); } catch(e){ setRec(false); }
+  };
 })();
 
 /* 編集ダイアログ */
