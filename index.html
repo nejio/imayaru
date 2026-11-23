@@ -222,6 +222,7 @@ function viewNow(pop){
     <div class="row2">
       <button class="sec" id="b_later">⏭ あとで<br><small>1時間</small></button>
       <button class="sec" id="b_split">✂ 小さくする<br><small>最初の一歩</small></button>
+      <button class="sec" id="b_pin">${t.pin ? '📌 固定を解除' : '📍 これで固定'}<br><small>${t.pin ? '押すと解除' : '動かさない'}</small></button>
     </div>
     <div id="splitbox"></div>
   </div>
@@ -231,6 +232,7 @@ function viewNow(pop){
     else complete(t);
   };
   $('#b_later').onclick = () => { t.snooze = Date.now() + 3600000; t.pin = false; save(); toast('1時間あとに回した'); render(); };
+  $('#b_pin').onclick = () => { const on = !t.pin; S.tasks.forEach(x => x.pin = false); t.pin = on; save(); toast(on ? '固定した' : '固定を解除した'); render(); };
   $('#b_split').onclick = () => {
     $('#splitbox').innerHTML = `<input id="stepinp" placeholder="30秒でできる最初の一歩は？" style="width:100%;margin-top:12px;padding:12px;border-radius:12px;border:1px solid var(--line);background:#14161a;color:var(--text);font-size:17px">`;
     const i = $('#stepinp'); i.focus();
