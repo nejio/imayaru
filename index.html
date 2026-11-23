@@ -254,10 +254,9 @@ function renderAlerts(){
   if (od) h += `<div class="al bad">期限が過ぎているのが ${od}件 あります（「ぜんぶ」で確認）</div>`;
   if (soon) h += `<div class="al">1時間以内の予定が ${soon}件 あります</div>`;
   if (cfg.url && !cfg.push) h += `<div class="al" id="askn" style="cursor:pointer">🔔 タップで通知をオン（アプリを閉じていても届きます）</div>`;
-  else if (!cfg.url && 'Notification' in window && Notification.permission === 'default')
-    h += `<div class="al" id="askn" style="cursor:pointer">🔔 タップで通知をオンにする（アプリを開いている間、期限を知らせます）</div>`;
+  else if (!cfg.url) h += `<div class="al" id="askn" style="cursor:pointer">⚙ サーバー未設定。タップして設定リンクを貼る</div>`;
   $('#alerts').innerHTML = h;
-  const a = $('#askn'); if (a) a.onclick = () => cfg.url ? enablePush() : Notification.requestPermission().then(render);
+  const a = $('#askn'); if (a) a.onclick = () => cfg.url ? enablePush() : (tab = 'done', render());
 }
 function viewNow(pop){
   const list = order(), t = list[0], v = $('#view');
@@ -332,8 +331,12 @@ function viewDone(){
   <h2>サーバー連携</h2>
   <div class="item"><div class="body"><div class="t">${cfg.url ? 'つながっています' : '未設定'} ${cfg.push ? '・通知オン' : ''}</div>
     <div class="d">${cfg.url ? esc(cfg.url) : '設定リンクを開くと入ります'}</div></div></div>
+  ${cfg.url ? '' : `<div style="margin-top:10px"><div class="d" style="color:var(--sub);font-size:14px">設定リンクをコピーして、ここに貼り付けてください</div>
+    <input id="setupinp" placeholder="https://nejio.github.io/imayaru/#setup=…" style="width:100%;margin-top:6px;padding:12px;border-radius:12px;border:1px solid var(--line);background:#14161a;color:var(--text);font-size:16px">
+    <button class="big" id="setupbtn" style="font-size:18px;padding:14px">この設定を入れる</button></div>`}
   <div class="tools"><button id="t_sync">🔄 今すぐ同期</button><button id="t_push">🔔 通知をオン</button><button id="t_test">📨 テスト通知</button></div>
   <div id="hint">データはサーバーと同期されます。バックアップは念のため残してあります。</div>`;
+  const sb = $('#setupbtn'); if (sb) sb.onclick = () => { if (applySetup($('#setupinp').value)) { toast('サーバー設定を入れた'); render(); } else toast('リンクが読み取れません。全部コピーできていますか？'); };
   $('#t_sync').onclick = () => { sync(); toast('同期する'); };
   $('#t_push').onclick = enablePush;
   $('#t_test').onclick = () => fetch(cfg.url + '/api/test', { method: 'POST', headers: { Authorization: 'Bearer ' + cfg.token } }).then(r => r.json()).then(j => toast(j.sent ? 'テスト通知を送った' : '送れなかった（通知をオンにしてください）')).catch(() => toast('サーバーに届かない'));
@@ -433,7 +436,13 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { ti
 /* ========== 補助 ========== */
 let tt; function toast(m){ const el = $('#toast'); el.textContent = m; el.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => el.classList.remove('show'), 1600); }
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
-(() => { // 設定リンク: …/imayaru/#setup=<base64> を開くとサーバー設定が入る
+function applySetup(text){ // 設定リンク（または #setup= 以降の文字列）からサーバー設定を入れる
+  const m = String(text).trim().match(/(?:#setup=)?([A-Za-z0-9+\/=_-]{20,})$/);
+  if (!m) return false;
+  try { const o = JSON.parse(decodeURIComponent(escape(atob(m[1])))); if (o.u && o.t) { cfg.url = o.u.replace(/\/$/, ''); cfg.token = o.t; saveCfg(); sync(); return true; } } catch(e){}
+  return false;
+}
+(() => {
   const m = location.hash.match(/^#setup=(.+)$/);
   if (m) { try { const o = JSON.parse(decodeURIComponent(escape(atob(m[1])))); if (o.u && o.t) { cfg.url = o.u.replace(/\/$/, ''); cfg.token = o.t; saveCfg(); history.replaceState(null, '', location.pathname); toast('サーバー設定を入れた'); } } catch(e){} }
 })();
